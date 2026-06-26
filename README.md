@@ -4,7 +4,7 @@
 
 ## 📋 Описание
 
-`extract.py` распаковывает файлы из текстовых шаблонов, распознавая маркеры `start_my_file`/`end_my_file` с комментариями. Поддерживает 30+ форматов файлов.
+`extract.py` распаковывает файлы из текстовых шаблонов, распознавая маркеры `start_my_file`/`end_my_file` с комментариями. Поддерживает 30+ форматов файлов и множество стилей комментариев.
 
 ## 🚀 Быстрый старт
 
@@ -91,16 +91,45 @@ debug = true
 ; end_my_file config.ini
 ```
 
+Pascal/Delphi:
+```pascal
+{ start_my_file program.pas }
+begin
+  writeln('Hello');
+end.
+{ end_my_file program.pas }
+```
+
+Lua:
+```lua
+--[[ start_my_file script.lua ]]
+print("Hello")
+--[[ end_my_file script.lua ]]
+```
+
+Haskell:
+```haskell
+{- start_my_file Main.hs -}
+main = putStrLn "Hello"
+{- end_my_file Main.hs -}
+```
+
 ## 🔧 Поддерживаемые форматы
 
 | Тип | Расширения | Стиль комментариев |
 |-----|------------|-------------------|
-| Python, Shell | `.py`, `.sh`, `.bash` | `# ` |
-| JS, TS, Java, C/C++ | `.js`, `.ts`, `.java`, `.c`, `.cpp` | `// ` |
-| HTML, XML | `.html`, `.xml`, `.svg` | `<!-- -->` |
+| Python, Shell, Ruby, Tcl | `.py`, `.sh`, `.rb`, `.tcl` | `# ` |
+| JS, TS, Java, C/C++, Go | `.js`, `.ts`, `.java`, `.c`, `.cpp`, `.go` | `// ` |
+| HTML, XML, SVG | `.html`, `.xml`, `.svg` | `<!-- -->` |
 | CSS, SCSS | `.css`, `.scss` | `/* */` |
-| SQL | `.sql` | `-- ` |
+| SQL, VHDL | `.sql`, `.vhd` | `-- ` |
 | INI, YAML, TOML | `.ini`, `.yml`, `.toml` | `; ` или `# ` |
+| Pascal, Delphi | `.pas`, `.dpr` | `{ }` |
+| Lua | `.lua` | `--[[ ]]` |
+| Haskell | `.hs` | `{- -}` |
+| TeX, LaTeX | `.tex`, `.latex` | `% ` |
+| Perl | `.pl`, `.pm` | `% ` |
+| Assembly | `.asm`, `.s` | `; ` |
 
 ## 📁 Структура проекта
 
@@ -129,6 +158,10 @@ start_my_file file.ext
 /* start_my_file file.ext */
 -- start_my_file file.ext
 ; start_my_file file.ext
+{ start_my_file file.ext }
+--[[ start_my_file file.ext ]]
+{- start_my_file file.ext -}
+% start_my_file file.ext
 ```
 
 ## 🧪 Тестирование
@@ -160,8 +193,8 @@ MIT License
 
 | | |
 |---|---|
-| **Автор**  | Виктор Макаров |
-| **Email**  | vmakarov.kzn@gmail.com |
+| **Автор** | Виктор Макаров |
+| **Email** | vmakarov.kzn@gmail.com |
 | **GitHub** | [@VikM78](https://github.com/VikM78) |
 
 ---
