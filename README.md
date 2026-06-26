@@ -158,9 +158,11 @@ MIT License
 
 ## 📞 Контакты
 
-| **Автор** | Виктор Макаров |
-| **Email** | vmakarov.kzn@gmail.com |
-| **GitHub** | @VikM78 |
+| | |
+|---|---|
+| **Автор**  | Виктор Макаров |
+| **Email**  | vmakarov.kzn@gmail.com |
+| **GitHub** | [@VikM78](https://github.com/VikM78) |
 
 ---
 
