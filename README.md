@@ -22,9 +22,9 @@
 
 ```bash
 # Клонирование репозитория
-git clone https://github.com/yourusername/file-extractor.git
+git clone https://github.com/VikM78/file-extractor.git
 cd file-extractor
 
 # Или просто скачайте скрипт
-wget https://raw.githubusercontent.com/yourusername/file-extractor/main/extract.py
+wget https://raw.githubusercontent.com/VikM78/file-extractor/main/extract.py
 chmod +x extract.py
