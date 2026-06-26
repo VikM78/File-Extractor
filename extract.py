@@ -2,40 +2,41 @@
 # -*- coding: utf-8 -*-
 
 """
-Universal installer for DCIM_monitor project.
-Creates folder structure and files from template text file.
+Universal File Extractor
+Extracts files from template text files with comment-aware markers.
 
 Usage:
-    python {script_name} [SOURCE_FILE] [OPTIONS]
+    python extract.py [SOURCE_FILE] [OPTIONS]
 
 Arguments:
-    SOURCE_FILE             Source template file (default: текст_всех_файлов.txt)
+    SOURCE_FILE             Source template file (default: template.txt)
 
 Options:
     -h, --help              Show this help message
-    -i, --install PATH      Installation directory (default: ./DCIM_monitor)
+    -o, --output PATH       Output directory (default: ./extracted_files)
     -y, --yes               Answer yes to all prompts
     -v, --verbose           Verbose output
 
 Examples:
-    python {script_name}                         # Use default template
-    python {script_name} DATA1.txt               # Use specific file
-    python {script_name} DATA_01.txt -i /opt/proj # Use custom file and path
-    python {script_name} -i /opt/myproject -y    # Non-interactive mode
+    python extract.py                         # Use default template
+    python extract.py DATA1.txt               # Use specific file
+    python extract.py template.txt -o ./output # Custom output directory
+    python extract.py -o ./project -y         # Non-interactive mode
 """
 
 import os
 import sys
 import glob
+import re
 import argparse
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
-class Installer:
-    """Main installer class with interactive and non-interactive modes."""
+class Extractor:
+    """Main extractor class with interactive and non-interactive modes."""
     
     def __init__(self):
-        self.project_dir = None
+        self.output_dir = None
         self.source_files = []
         self.verbose = False
         self.auto_yes = False
@@ -43,33 +44,31 @@ class Installer:
         
     def parse_arguments(self):
         """Parse command line arguments."""
-        # Get script name for help text
         script_name = self.script_name
         
         parser = argparse.ArgumentParser(
-            description="Universal installer for DCIM_monitor project",
+            description="Universal File Extractor - Extract files from templates",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog=f"""
 Examples:
     python {script_name}                         # Use default template
     python {script_name} DATA1.txt               # Use specific file
-    python {script_name} DATA_01.txt -i /opt/proj # Use custom file and path
-    python {script_name} -i /opt/myproject -y    # Non-interactive mode
+    python {script_name} template.txt -o ./output # Custom output directory
+    python {script_name} -o ./project -y         # Non-interactive mode
             """
         )
         
-        # Positional argument for source file
         parser.add_argument(
             'source_file',
             nargs='?',
-            default='текст_всех_файлов.txt',
-            help='Source template file (default: текст_всех_файлов.txt)'
+            default='template.txt',
+            help='Source template file (default: template.txt)'
         )
         
         parser.add_argument(
-            '-i', '--install',
-            dest='install_dir',
-            help='Installation directory (default: ./DCIM_monitor)'
+            '-o', '--output',
+            dest='output_dir',
+            help='Output directory (default: ./extracted_files)'
         )
         
         parser.add_argument(
@@ -86,18 +85,18 @@ Examples:
         
         return parser.parse_args()
     
-    def get_install_path(self, args):
-        """Get installation path from args or interactive prompt."""
-        if args.install_dir:
-            return Path(args.install_dir)
+    def get_output_path(self, args):
+        """Get output path from args or interactive prompt."""
+        if args.output_dir:
+            return Path(args.output_dir)
         
         # Interactive prompt
         print("\n" + "="*60)
-        print(" DCIM_monitor Installer")
+        print(" Universal File Extractor")
         print("="*60)
         
-        default_path = Path.cwd() / "DCIM_monitor"
-        print(f"\nInstallation directory (default: {default_path}):")
+        default_path = Path.cwd() / "extracted_files"
+        print(f"\nOutput directory (default: {default_path}):")
         
         if self.auto_yes:
             return default_path
@@ -121,14 +120,14 @@ Examples:
         if source_path.exists() and source_path.is_file():
             return [source_path]
         
-        # Try with DATA pattern
-        if 'DATA' in args.source_file or '*' in args.source_file:
-            # Try glob pattern
+        # Try with pattern
+        if '*' in args.source_file or '?' in args.source_file:
             matches = glob.glob(args.source_file)
             if matches:
                 return [Path(f) for f in sorted(matches)]
-            
-            # Try with DATA* pattern
+        
+        # Try with DATA pattern
+        if 'DATA' in args.source_file:
             data_files = sorted(glob.glob("DATA*"))
             if data_files:
                 print(f"\nFile '{args.source_file}' not found. Found DATA files:")
@@ -143,24 +142,24 @@ Examples:
         # File not found - interactive mode
         print(f"\nFile '{args.source_file}' not found.")
         
-        # Look for DATA files in current directory
-        data_files = sorted(glob.glob("DATA*"))
-        if data_files:
-            print("\nFound data files:")
-            for i, f in enumerate(data_files, 1):
+        # Look for template files in current directory
+        template_files = sorted(glob.glob("*.txt"))
+        if template_files:
+            print("\nFound template files:")
+            for i, f in enumerate(template_files, 1):
                 print(f"  {i}. {f}")
             
             if not self.auto_yes:
-                choice = input("\nUse all DATA files? (Y/n): ").strip().lower()
+                choice = input("\nUse all template files? (Y/n): ").strip().lower()
                 if choice in ('', 'y', 'yes'):
-                    return [Path(f) for f in data_files]
+                    return [Path(f) for f in template_files]
         
         # Manual input
         print("\nEnter source file(s) or directory:")
         print("  - Single file: template.txt")
         print("  - Directory: ./templates")
-        print("  - Multiple files: DATA1.txt DATA2.txt")
-        print("  - Pattern: DATA_*.txt")
+        print("  - Multiple files: file1.txt file2.txt")
+        print("  - Pattern: *.txt")
         
         if self.auto_yes:
             print("No source files specified. Exiting.")
@@ -181,13 +180,13 @@ Examples:
                     if path.is_file():
                         source_files.append(path)
                     elif path.is_dir():
-                        # Search for DATA* files in directory
-                        pattern = path / "DATA*"
+                        # Search for template files in directory
+                        pattern = path / "*.txt"
                         dir_files = glob.glob(str(pattern))
                         if dir_files:
                             source_files.extend([Path(f) for f in sorted(dir_files)])
                         else:
-                            print(f"No DATA* files found in {path}")
+                            print(f"No template files found in {path}")
                     else:
                         print(f"Path does not exist: {path}")
                 else:
@@ -205,8 +204,118 @@ Examples:
         
         return source_files
     
+    def get_comment_style(self, filename: str) -> Tuple[str, str]:
+        """Get comment style based on file extension."""
+        ext = Path(filename).suffix.lower()
+        
+        # Map extensions to comment styles
+        comment_styles = {
+            # Python, shell, etc.
+            '.py': ('# ', '# '),
+            '.sh': ('# ', '# '),
+            '.bash': ('# ', '# '),
+            '.zsh': ('# ', '# '),
+            '.fish': ('# ', '# '),
+            '.rb': ('# ', '# '),
+            '.pl': ('# ', '# '),
+            '.pm': ('# ', '# '),
+            '.go': ('// ', '// '),
+            '.rs': ('// ', '// '),
+            '.swift': ('// ', '// '),
+            '.java': ('// ', '// '),
+            '.c': ('// ', '// '),
+            '.cpp': ('// ', '// '),
+            '.h': ('// ', '// '),
+            '.hpp': ('// ', '// '),
+            '.js': ('// ', '// '),
+            '.jsx': ('// ', '// '),
+            '.ts': ('// ', '// '),
+            '.tsx': ('// ', '// '),
+            '.php': ('// ', '// '),
+            
+            # HTML, XML
+            '.html': ('<!-- ', ' -->'),
+            '.htm': ('<!-- ', ' -->'),
+            '.xhtml': ('<!-- ', ' -->'),
+            '.xml': ('<!-- ', ' -->'),
+            '.svg': ('<!-- ', ' -->'),
+            
+            # CSS, SCSS
+            '.css': ('/* ', ' */'),
+            '.scss': ('/* ', ' */'),
+            '.sass': ('// ', '// '),
+            '.less': ('// ', '// '),
+            
+            # Config files
+            '.yml': ('# ', '# '),
+            '.yaml': ('# ', '# '),
+            '.json': ('// ', '// '),
+            '.toml': ('# ', '# '),
+            '.ini': ('; ', '; '),
+            '.cfg': ('# ', '# '),
+            '.conf': ('# ', '# '),
+            
+            # SQL
+            '.sql': ('-- ', '-- '),
+            
+            # Docker
+            '.dockerfile': ('# ', '# '),
+            'dockerfile': ('# ', '# '),
+            
+            # Makefile
+            '.mk': ('# ', '# '),
+            'makefile': ('# ', '# '),
+            
+            # Default
+            'default': ('# ', '# '),
+        }
+        
+        # Special cases for files without extension
+        if filename.lower() == 'dockerfile':
+            return comment_styles['dockerfile']
+        if filename.lower() == 'makefile':
+            return comment_styles['makefile']
+        
+        return comment_styles.get(ext, comment_styles['default'])
+    
+    def detect_markers(self, content: str) -> Tuple[bool, str, str]:
+        """Detect if content contains markers and what style they use."""
+        patterns = [
+            # Simple markers (no comments)
+            (r'^start_my_file\s+(.+)$', r'^end_my_file\s+(.+)$', ''),
+            
+            # Python/Shell style (# )
+            (r'^#\s*start_my_file\s+(.+)$', r'^#\s*end_my_file\s+(.+)$', '# '),
+            
+            # C/Java/JS style (// )
+            (r'^//\s*start_my_file\s+(.+)$', r'^//\s*end_my_file\s+(.+)$', '// '),
+            
+            # HTML style (<!-- -->)
+            (r'^<!--\s*start_my_file\s+(.+)\s*-->$', r'^<!--\s*end_my_file\s+(.+)\s*-->$', '<!-- '),
+            
+            # CSS style (/* */)
+            (r'^/\*\s*start_my_file\s+(.+)\s*\*/$', r'^/\*\s*end_my_file\s+(.+)\s*\*/$', '/* '),
+            
+            # SQL style (-- )
+            (r'^--\s*start_my_file\s+(.+)$', r'^--\s*end_my_file\s+(.+)$', '-- '),
+            
+            # INI style (; )
+            (r'^;\s*start_my_file\s+(.+)$', r'^;\s*end_my_file\s+(.+)$', '; '),
+        ]
+        
+        lines = content.splitlines()
+        for i, line in enumerate(lines):
+            for start_pattern, end_pattern, style in patterns:
+                if re.match(start_pattern, line.strip()):
+                    for j in range(i+1, min(i+100, len(lines))):
+                        if re.match(end_pattern, lines[j].strip()):
+                            return True, style, style
+                    return True, style, style
+        
+        return False, '', ''
+    
     def parse_template_file(self, file_path: Path) -> List[Dict]:
-        """Parse a single template file with start_my_file/end_my_file markers."""
+        """Parse a single template file with comment-aware markers."""
         blocks = []
         
         try:
@@ -216,20 +325,44 @@ Examples:
             print(f"Error reading {file_path}: {e}")
             return blocks
         
+        # Detect marker style
+        has_markers, start_style, end_style = self.detect_markers(content)
+        
+        if not has_markers:
+            # No markers found, treat as single file
+            filename = file_path.name
+            if filename.endswith('.txt'):
+                filename = filename[:-4]
+            blocks.append({
+                "filename": filename,
+                "content": content
+            })
+            return blocks
+        
         lines = content.splitlines()
+        
+        # Build regex patterns for detected style
+        if start_style:
+            start_pattern = re.compile(r'^' + re.escape(start_style) + r'\s*start_my_file\s+(.+)$')
+            end_pattern = re.compile(r'^' + re.escape(end_style) + r'\s*end_my_file\s+(.+)$')
+        else:
+            start_pattern = re.compile(r'^start_my_file\s+(.+)$')
+            end_pattern = re.compile(r'^end_my_file\s+(.+)$')
         
         i = 0
         while i < len(lines):
-            line = lines[i].strip()
+            line = lines[i]
+            match = start_pattern.match(line.strip())
             
-            if line.startswith("start_my_file "):
-                filename = line.replace("start_my_file ", "").strip()
+            if match:
+                filename = match.group(1).strip()
                 i += 1
                 
                 content_lines = []
                 while i < len(lines):
-                    if lines[i].strip().startswith("end_my_file "):
-                        end_filename = lines[i].strip().replace("end_my_file ", "").strip()
+                    end_match = end_pattern.match(lines[i].strip())
+                    if end_match:
+                        end_filename = end_match.group(1).strip()
                         if end_filename == filename:
                             i += 1
                             break
@@ -264,48 +397,33 @@ Examples:
                     print(f"  Found {len(blocks)} file blocks in {file_path.name}")
                 all_blocks.extend(blocks)
             else:
-                # Check if file is a simple script without markers
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    # Use filename as the target filename
-                    filename = file_path.name
-                    if filename.endswith('.txt'):
-                        filename = filename[:-4]
-                    all_blocks.append({
-                        "filename": filename,
-                        "content": content
-                    })
-                    if self.verbose:
-                        print(f"  Added as single file: {filename}")
-                except Exception as e:
-                    print(f"Error processing {file_path}: {e}")
+                print(f"  No blocks found in {file_path}")
         
         return all_blocks
     
-    def create_project(self, blocks: List[Dict]):
-        """Create project folders and files from blocks."""
+    def extract_files(self, blocks: List[Dict]):
+        """Extract files to output directory."""
         print("\n" + "="*60)
-        print(" Installing DCIM_monitor Project")
+        print(" Extracting Files")
         print("="*60)
-        print(f" Target directory: {self.project_dir}")
-        print(f" Source files: {len(blocks)} file blocks")
+        print(f" Output directory: {self.output_dir}")
+        print(f" Files to extract: {len(blocks)}")
         print("")
         
         # Check if directory exists and not empty
-        if self.project_dir.exists():
-            if any(self.project_dir.iterdir()):
-                print(f"Warning: {self.project_dir} already exists and is not empty.")
+        if self.output_dir.exists():
+            if any(self.output_dir.iterdir()):
+                print(f"Warning: {self.output_dir} already exists and is not empty.")
                 if not self.auto_yes:
                     response = input("Continue anyway? (y/N): ").strip().lower()
                     if response not in ('y', 'yes'):
-                        print("Installation cancelled.")
+                        print("Extraction cancelled.")
                         return
         
         # Create directory
-        self.project_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        created_files = 0
+        extracted_files = 0
         created_dirs = set()
         
         for block in blocks:
@@ -317,7 +435,7 @@ Examples:
                     print(f" Skipping empty: {filename}")
                 continue
             
-            file_path = self.project_dir / filename
+            file_path = self.output_dir / filename
             parent_dir = file_path.parent
             
             if not parent_dir.exists():
@@ -330,43 +448,35 @@ Examples:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             
-            created_files += 1
-            print(f" Created: {filename}")
+            extracted_files += 1
+            print(f" Extracted: {filename}")
         
         print("")
-        print(f" Files created: {created_files}")
+        print(f" Files extracted: {extracted_files}")
         print(f" Folders created: {len(created_dirs)}")
         print("")
         print("="*60)
-        print(" Project successfully deployed!")
-        print(f" Path: {self.project_dir}")
+        print(" Extraction completed successfully!")
+        print(f" Output path: {self.output_dir}")
         print("="*60)
-        print("")
-        print(" Next steps:")
-        print(f"   1. cd {self.project_dir}")
-        print("   2. pip install -r requirements.txt")
-        print("   3. cp .env.example .secrets/.env")
-        print("   4. Edit .secrets/.env")
-        print("   5. python run.py -a")
-        print("")
     
     def run(self):
-        """Main installation process."""
+        """Main extraction process."""
         args = self.parse_arguments()
         
         self.verbose = args.verbose
         self.auto_yes = args.yes
         
         print("="*60)
-        print(f" DCIM_monitor Universal Installer ({self.script_name})")
+        print(f" Universal File Extractor ({self.script_name})")
         print("="*60)
         print(" Press Ctrl+C to cancel at any time")
         print("")
         
         try:
-            # Get installation path
-            self.project_dir = self.get_install_path(args)
-            print(f" Installation directory: {self.project_dir}")
+            # Get output path
+            self.output_dir = self.get_output_path(args)
+            print(f" Output directory: {self.output_dir}")
             
             # Get source files
             self.source_files = self.get_source_files(args)
@@ -380,14 +490,14 @@ Examples:
             
             if not all_blocks:
                 print(" No file blocks found in source files!")
-                print(" Make sure files contain 'start_my_file' and 'end_my_file' markers.")
+                print(" Make sure files contain markers with comments.")
                 sys.exit(1)
             
-            # Create project
-            self.create_project(all_blocks)
+            # Extract files
+            self.extract_files(all_blocks)
             
         except KeyboardInterrupt:
-            print("\n\n Installation cancelled by user.")
+            print("\n\n Extraction cancelled by user.")
             sys.exit(1)
         except Exception as e:
             print(f"\n Error: {e}")
@@ -397,8 +507,8 @@ Examples:
             sys.exit(1)
 
 def main():
-    installer = Installer()
-    installer.run()
+    extractor = Extractor()
+    extractor.run()
 
 if __name__ == "__main__":
     main()
