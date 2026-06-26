@@ -22,6 +22,10 @@ Examples:
     python extract.py DATA1.txt               # Use specific file
     python extract.py template.txt -o ./output # Custom output directory
     python extract.py -o ./project -y         # Non-interactive mode
+
+Author: Виктор Макаров
+Email: vmakarov.kzn@gmail.com
+GitHub: @VikM78
 """
 
 import os
