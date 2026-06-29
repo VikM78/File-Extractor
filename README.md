@@ -1,22 +1,36 @@
-# Universal File Extractor
+# Universal File Extractor & Packer
 
-Универсальный инструмент для извлечения файлов из текстовых шаблонов с поддержкой комментариев.
+[![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Комплект инструментов для упаковки и распаковки файлов в текстовые шаблоны с поддержкой множества стилей комментариев.
 
 ## 📋 Описание
 
-`extract.py` распаковывает файлы из текстовых шаблонов, распознавая маркеры `start_my_file`/`end_my_file` с комментариями. Поддерживает 30+ форматов файлов и множество стилей комментариев.
+Проект состоит из двух скриптов:
+
+- **`extract.py`** - распаковывает файлы из текстового шаблона с маркерами `start_my_file`/`end_my_file`
+- **`pack.py`** - упаковывает файлы из папки в один текстовый шаблон
+
+Поддерживает **100+ типов файлов** с автоматическим определением стиля комментариев.
 
 ## 🚀 Быстрый старт
 
 ```bash
-# Скачать скрипт
+# Скачать скрипты
 wget https://raw.githubusercontent.com/VikM78/file-extractor/main/extract.py
+wget https://raw.githubusercontent.com/VikM78/file-extractor/main/pack.py
 
-# Запустить
-python extract.py
+# Распаковать шаблон
+python extract.py template.txt -o ./project
+
+# Упаковать проект
+python pack.py ./project -o ./templates -n my_pack.txt
 ```
 
 ## 📖 Использование
+
+### extract.py - Распаковка
 
 ```bash
 python extract.py [SOURCE_FILE] [OPTIONS]
@@ -32,9 +46,32 @@ python extract.py [SOURCE_FILE] [OPTIONS]
 **Примеры:**
 ```bash
 python extract.py                    # Интерактивный режим
-python extract.py my_template.txt    # Указать файл
+python extract.py DATA1.txt          # Указать файл
 python extract.py -o ./output        # Указать выходную папку
 python extract.py -y                 # Автоматический режим
+```
+
+### pack.py - Упаковка
+
+```bash
+python pack.py [SOURCE_DIR] [OPTIONS]
+```
+
+**Опции:**
+- `SOURCE_DIR` - папка с файлами (по умолчанию: `./ПАПКА`)
+- `-o, --output PATH` - выходная папка (по умолчанию: `./output`)
+- `-n, --name NAME` - имя выходного файла (по умолчанию: `DATA_compact.txt`)
+- `-e, --exclude PATTERN` - исключить файлы по паттерну
+- `-y, --yes` - автоматическое согласие
+- `-v, --verbose` - подробный вывод
+- `-h, --help` - справка
+
+**Примеры:**
+```bash
+python pack.py                       # Упаковать из ./ПАПКА
+python pack.py ./my_project          # Упаковать из ./my_project
+python pack.py -o ./templates -n pack # Свои настройки
+python pack.py -e "*.pyc" -e "*.log" # Исключить файлы
 ```
 
 ## 📝 Формат шаблонов
@@ -46,7 +83,7 @@ Content
 end_my_file file.txt
 ```
 
-**С комментариями (рекомендуется):**
+**С комментариями (автоматически определяется):**
 
 Python:
 ```python
@@ -91,65 +128,71 @@ debug = true
 ; end_my_file config.ini
 ```
 
-Pascal/Delphi:
-```pascal
-{ start_my_file program.pas }
-begin
-  writeln('Hello');
-end.
-{ end_my_file program.pas }
-```
-
-Lua:
-```lua
---[[ start_my_file script.lua ]]
-print("Hello")
---[[ end_my_file script.lua ]]
-```
-
-Haskell:
-```haskell
-{- start_my_file Main.hs -}
-main = putStrLn "Hello"
-{- end_my_file Main.hs -}
-```
-
 ## 🔧 Поддерживаемые форматы
 
 | Тип | Расширения | Стиль комментариев |
 |-----|------------|-------------------|
-| Python, Shell, Ruby, Tcl | `.py`, `.sh`, `.rb`, `.tcl` | `# ` |
-| JS, TS, Java, C/C++, Go | `.js`, `.ts`, `.java`, `.c`, `.cpp`, `.go` | `// ` |
-| HTML, XML, SVG | `.html`, `.xml`, `.svg` | `<!-- -->` |
-| CSS, SCSS | `.css`, `.scss` | `/* */` |
-| SQL, VHDL | `.sql`, `.vhd` | `-- ` |
-| INI, YAML, TOML | `.ini`, `.yml`, `.toml` | `; ` или `# ` |
-| Pascal, Delphi | `.pas`, `.dpr` | `{ }` |
-| Lua | `.lua` | `--[[ ]]` |
-| Haskell | `.hs` | `{- -}` |
-| TeX, LaTeX | `.tex`, `.latex` | `% ` |
-| Perl | `.pl`, `.pm` | `% ` |
-| Assembly | `.asm`, `.s` | `; ` |
+| **Python, Shell, Ruby** | `.py`, `.sh`, `.rb` | `# ` |
+| **JS, TS, Java, C/C++** | `.js`, `.ts`, `.java`, `.c` | `// ` |
+| **HTML, XML, SVG** | `.html`, `.xml`, `.svg` | `<!-- -->` |
+| **CSS, SCSS** | `.css`, `.scss` | `/* */` |
+| **SQL** | `.sql`, `.psql`, `.mysql` | `-- ` |
+| **INI, YAML, TOML** | `.ini`, `.yml`, `.toml` | `; ` или `# ` |
+| **Lua** | `.lua` | `-- ` |
+| **Haskell** | `.hs` | `{- -}` |
+| **Pascal** | `.pas`, `.dpr` | `{ }` |
+| **LaTeX** | `.tex` | `% ` |
+| **PowerShell** | `.ps1` | `# ` |
+| **Batch** | `.bat`, `.cmd` | `:: ` |
 
 ## 📁 Структура проекта
 
 ```
 file-extractor/
-├── extract.py          # Основной скрипт
+├── extract.py          # Распаковка
+├── pack.py             # Упаковка
 ├── README.md           # Документация
 ├── LICENSE             # Лицензия
 ├── .gitignore          # Игнорируемые файлы
-├── examples/           # Примеры шаблонов
+├── examples/           # Примеры
+│   ├── sample_template.txt
+│   └── sample_project/
 └── tests/              # Тесты
+```
+
+## 🔄 Рабочий процесс
+
+### 1. Упаковка проекта
+
+```bash
+# Собрать все файлы из папки в один шаблон
+python pack.py ./my_project -o ./templates -n project_backup.txt
+```
+
+### 2. Распаковка шаблона
+
+```bash
+# Извлечь все файлы из шаблона
+python extract.py ./templates/project_backup.txt -o ./restored_project
+```
+
+### 3. Автоматизация
+
+```bash
+# Неинтерактивный режим
+python pack.py ./src -o ./backup -y
+python extract.py ./backup/DATA_compact.txt -o ./restore -y
 ```
 
 ## 🐛 Решение проблем
 
 **"No file blocks found!"** - проверьте наличие маркеров `start_my_file`/`end_my_file`
 
-**"File not found"** - проверьте путь к файлу
+**"File not found"** - проверьте путь к файлу или папке
 
-**Маркеры не распознаются** - используйте один из форматов:
+**"Permission denied"** - проверьте права на запись в папку
+
+**Маркеры не распознаются** - используйте поддерживаемый формат:
 ```
 start_my_file file.ext
 # start_my_file file.ext
@@ -158,23 +201,24 @@ start_my_file file.ext
 /* start_my_file file.ext */
 -- start_my_file file.ext
 ; start_my_file file.ext
-{ start_my_file file.ext }
---[[ start_my_file file.ext ]]
-{- start_my_file file.ext -}
-% start_my_file file.ext
 ```
 
 ## 🧪 Тестирование
 
 ```bash
-# Создать тестовый шаблон
-echo '# start_my_file hello.txt\nHello World!\n# end_my_file hello.txt' > test.txt
+# Создать тестовый проект
+mkdir test_project
+echo "print('Hello')" > test_project/main.py
+echo "debug=true" > test_project/config.ini
 
-# Запустить извлечение
-python extract.py test.txt -o ./output
+# Упаковать
+python pack.py test_project -o ./test_output -n test_pack.txt
 
-# Проверить результат
-cat ./output/hello.txt
+# Распаковать
+python extract.py ./test_output/test_pack.txt -o ./test_restore
+
+# Проверить
+diff -r test_project test_restore
 ```
 
 ## 🤝 Вклад в проект
