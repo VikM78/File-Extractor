@@ -3,7 +3,7 @@
 
 """
 Universal File Extractor
-Extracts files from template text files with comment-aware markers.
+Extracts files from template text files with support for ANY comment styles.
 
 Usage:
     python extract.py [SOURCE_FILE] [OPTIONS]
@@ -34,10 +34,56 @@ import glob
 import re
 import argparse
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Pattern
 
 class Extractor:
-    """Main extractor class with interactive and non-interactive modes."""
+    """Main extractor class with support for unlimited comment styles."""
+    
+    # Определяем все возможные стили комментариев
+    COMMENT_STYLES = [
+        # (start_pattern, end_pattern, style_name)
+        # Без комментариев
+        (r'^\s*start_my_file\s+(.+)$', r'^\s*end_my_file\s+(.+)$', 'plain'),
+        
+        # Python/Shell (# )
+        (r'^\s*#\s*start_my_file\s+(.+)$', r'^\s*#\s*end_my_file\s+(.+)$', 'hash'),
+        
+        # C/Java/JS (// )
+        (r'^\s*//\s*start_my_file\s+(.+)$', r'^\s*//\s*end_my_file\s+(.+)$', 'slash'),
+        
+        # HTML (<!-- -->) - на одной строке
+        (r'^\s*<!--\s*start_my_file\s+(.+?)\s*-->$', r'^\s*<!--\s*end_my_file\s+(.+?)\s*-->$', 'html_single'),
+        
+        # HTML (<!-- -->) - на нескольких строках
+        (r'^\s*<!--\s*start_my_file\s+(.+)$', r'^\s*<!--\s*end_my_file\s+(.+?)\s*-->$', 'html_multi'),
+        
+        # CSS (/* */)
+        (r'^\s*/\*\s*start_my_file\s+(.+?)\s*\*/$', r'^\s*/\*\s*end_my_file\s+(.+?)\s*\*/$', 'css'),
+        
+        # SQL (-- )
+        (r'^\s*--\s*start_my_file\s+(.+)$', r'^\s*--\s*end_my_file\s+(.+)$', 'sql'),
+        
+        # INI (; )
+        (r'^\s*;\s*start_my_file\s+(.+)$', r'^\s*;\s*end_my_file\s+(.+)$', 'ini'),
+        
+        # Ruby/Perl (% )
+        (r'^\s*%\s*start_my_file\s+(.+)$', r'^\s*%\s*end_my_file\s+(.+)$', 'percent'),
+        
+        # Pascal/Delphi ({ })
+        (r'^\s*\{\s*start_my_file\s+(.+)\s*\}$', r'^\s*\{\s*end_my_file\s+(.+)\s*\}$', 'braces'),
+        
+        # Lua (--[[ ]])
+        (r'^\s*--\[\[\s*start_my_file\s+(.+)\s*\]\]$', r'^\s*--\[\[\s*end_my_file\s+(.+)\s*\]\]$', 'lua'),
+        
+        # Haskell ({- -})
+        (r'^\s*\{-\s*start_my_file\s+(.+)\s*-\}$', r'^\s*\{-\s*end_my_file\s+(.+)\s*-\}$', 'haskell'),
+        
+        # TeX/LaTeX (% )
+        (r'^\s*%\s*start_my_file\s+(.+)$', r'^\s*%\s*end_my_file\s+(.+)$', 'tex'),
+        
+        # VHDL (-- )
+        (r'^\s*--\s*start_my_file\s+(.+)$', r'^\s*--\s*end_my_file\s+(.+)$', 'vhdl'),
+    ]
     
     def __init__(self):
         self.output_dir = None
@@ -45,6 +91,12 @@ class Extractor:
         self.verbose = False
         self.auto_yes = False
         self.script_name = Path(sys.argv[0]).name
+        # Компилируем все паттерны заранее для производительности
+        self.start_patterns = []
+        self.end_patterns = []
+        for start_re, end_re, style_name in self.COMMENT_STYLES:
+            self.start_patterns.append((re.compile(start_re), style_name))
+            self.end_patterns.append((re.compile(end_re), style_name))
         
     def parse_arguments(self):
         """Parse command line arguments."""
@@ -208,118 +260,16 @@ Examples:
         
         return source_files
     
-    def get_comment_style(self, filename: str) -> Tuple[str, str]:
-        """Get comment style based on file extension."""
-        ext = Path(filename).suffix.lower()
-        
-        # Map extensions to comment styles
-        comment_styles = {
-            # Python, shell, etc.
-            '.py': ('# ', '# '),
-            '.sh': ('# ', '# '),
-            '.bash': ('# ', '# '),
-            '.zsh': ('# ', '# '),
-            '.fish': ('# ', '# '),
-            '.rb': ('# ', '# '),
-            '.pl': ('# ', '# '),
-            '.pm': ('# ', '# '),
-            '.go': ('// ', '// '),
-            '.rs': ('// ', '// '),
-            '.swift': ('// ', '// '),
-            '.java': ('// ', '// '),
-            '.c': ('// ', '// '),
-            '.cpp': ('// ', '// '),
-            '.h': ('// ', '// '),
-            '.hpp': ('// ', '// '),
-            '.js': ('// ', '// '),
-            '.jsx': ('// ', '// '),
-            '.ts': ('// ', '// '),
-            '.tsx': ('// ', '// '),
-            '.php': ('// ', '// '),
-            
-            # HTML, XML
-            '.html': ('<!-- ', ' -->'),
-            '.htm': ('<!-- ', ' -->'),
-            '.xhtml': ('<!-- ', ' -->'),
-            '.xml': ('<!-- ', ' -->'),
-            '.svg': ('<!-- ', ' -->'),
-            
-            # CSS, SCSS
-            '.css': ('/* ', ' */'),
-            '.scss': ('/* ', ' */'),
-            '.sass': ('// ', '// '),
-            '.less': ('// ', '// '),
-            
-            # Config files
-            '.yml': ('# ', '# '),
-            '.yaml': ('# ', '# '),
-            '.json': ('// ', '// '),
-            '.toml': ('# ', '# '),
-            '.ini': ('; ', '; '),
-            '.cfg': ('# ', '# '),
-            '.conf': ('# ', '# '),
-            
-            # SQL
-            '.sql': ('-- ', '-- '),
-            
-            # Docker
-            '.dockerfile': ('# ', '# '),
-            'dockerfile': ('# ', '# '),
-            
-            # Makefile
-            '.mk': ('# ', '# '),
-            'makefile': ('# ', '# '),
-            
-            # Default
-            'default': ('# ', '# '),
-        }
-        
-        # Special cases for files without extension
-        if filename.lower() == 'dockerfile':
-            return comment_styles['dockerfile']
-        if filename.lower() == 'makefile':
-            return comment_styles['makefile']
-        
-        return comment_styles.get(ext, comment_styles['default'])
-    
-    def detect_markers(self, content: str) -> Tuple[bool, str, str]:
-        """Detect if content contains markers and what style they use."""
-        patterns = [
-            # Simple markers (no comments)
-            (r'^start_my_file\s+(.+)$', r'^end_my_file\s+(.+)$', ''),
-            
-            # Python/Shell style (# )
-            (r'^#\s*start_my_file\s+(.+)$', r'^#\s*end_my_file\s+(.+)$', '# '),
-            
-            # C/Java/JS style (// )
-            (r'^//\s*start_my_file\s+(.+)$', r'^//\s*end_my_file\s+(.+)$', '// '),
-            
-            # HTML style (<!-- -->)
-            (r'^<!--\s*start_my_file\s+(.+)\s*-->$', r'^<!--\s*end_my_file\s+(.+)\s*-->$', '<!-- '),
-            
-            # CSS style (/* */)
-            (r'^/\*\s*start_my_file\s+(.+)\s*\*/$', r'^/\*\s*end_my_file\s+(.+)\s*\*/$', '/* '),
-            
-            # SQL style (-- )
-            (r'^--\s*start_my_file\s+(.+)$', r'^--\s*end_my_file\s+(.+)$', '-- '),
-            
-            # INI style (; )
-            (r'^;\s*start_my_file\s+(.+)$', r'^;\s*end_my_file\s+(.+)$', '; '),
-        ]
-        
-        lines = content.splitlines()
-        for i, line in enumerate(lines):
-            for start_pattern, end_pattern, style in patterns:
-                if re.match(start_pattern, line.strip()):
-                    for j in range(i+1, min(i+100, len(lines))):
-                        if re.match(end_pattern, lines[j].strip()):
-                            return True, style, style
-                    return True, style, style
-        
-        return False, '', ''
+    def find_matching_pattern(self, line: str, patterns: List) -> Optional[Tuple[Pattern, str, str]]:
+        """Find matching pattern for a line."""
+        for pattern, style_name in patterns:
+            match = pattern.match(line)
+            if match:
+                return match, pattern, style_name
+        return None, None, None
     
     def parse_template_file(self, file_path: Path) -> List[Dict]:
-        """Parse a single template file with comment-aware markers."""
+        """Parse a single template file with support for unlimited comment styles."""
         blocks = []
         
         try:
@@ -329,48 +279,35 @@ Examples:
             print(f"Error reading {file_path}: {e}")
             return blocks
         
-        # Detect marker style
-        has_markers, start_style, end_style = self.detect_markers(content)
-        
-        if not has_markers:
-            # No markers found, treat as single file
-            filename = file_path.name
-            if filename.endswith('.txt'):
-                filename = filename[:-4]
-            blocks.append({
-                "filename": filename,
-                "content": content
-            })
-            return blocks
-        
         lines = content.splitlines()
-        
-        # Build regex patterns for detected style
-        if start_style:
-            start_pattern = re.compile(r'^' + re.escape(start_style) + r'\s*start_my_file\s+(.+)$')
-            end_pattern = re.compile(r'^' + re.escape(end_style) + r'\s*end_my_file\s+(.+)$')
-        else:
-            start_pattern = re.compile(r'^start_my_file\s+(.+)$')
-            end_pattern = re.compile(r'^end_my_file\s+(.+)$')
         
         i = 0
         while i < len(lines):
             line = lines[i]
-            match = start_pattern.match(line.strip())
+            matched = False
             
-            if match:
+            # Проверяем все start паттерны
+            start_result = self.find_matching_pattern(line, self.start_patterns)
+            if start_result[0] is not None:
+                match, start_pattern, start_style = start_result
                 filename = match.group(1).strip()
                 i += 1
                 
                 content_lines = []
+                found_end = False
+                
+                # Ищем end маркер любым из паттернов
                 while i < len(lines):
-                    end_match = end_pattern.match(lines[i].strip())
-                    if end_match:
+                    end_result = self.find_matching_pattern(lines[i], self.end_patterns)
+                    if end_result[0] is not None:
+                        end_match, end_pattern, end_style = end_result
                         end_filename = end_match.group(1).strip()
                         if end_filename == filename:
+                            found_end = True
                             i += 1
                             break
                         else:
+                            # Неправильный end маркер - добавляем как контент
                             content_lines.append(lines[i])
                             i += 1
                     else:
@@ -380,10 +317,31 @@ Examples:
                 if filename and content_lines:
                     blocks.append({
                         "filename": filename,
-                        "content": "\n".join(content_lines)
+                        "content": "\n".join(content_lines),
+                        "start_style": start_style,
+                        "end_style": end_style if found_end else "not_found"
                     })
-            else:
+                    if self.verbose:
+                        print(f"  Found block: {filename} (style: {start_style})")
+                
+                matched = True
+            
+            if not matched:
                 i += 1
+        
+        # Если блоки не найдены, пробуем обработать как один файл
+        if not blocks:
+            filename = file_path.name
+            if filename.endswith('.txt'):
+                filename = filename[:-4]
+            blocks.append({
+                "filename": filename,
+                "content": content,
+                "start_style": "single_file",
+                "end_style": "single_file"
+            })
+            if self.verbose:
+                print(f"  No markers found, treating as single file: {filename}")
         
         return blocks
     
