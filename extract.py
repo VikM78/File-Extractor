@@ -36,54 +36,11 @@ import argparse
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Pattern
 
+# Import configuration
+from config import EXTRACT_PATTERNS
+
 class Extractor:
     """Main extractor class with support for unlimited comment styles."""
-    
-    # Определяем все возможные стили комментариев
-    COMMENT_STYLES = [
-        # (start_pattern, end_pattern, style_name)
-        # Без комментариев
-        (r'^\s*start_my_file\s+(.+)$', r'^\s*end_my_file\s+(.+)$', 'plain'),
-        
-        # Python/Shell (# )
-        (r'^\s*#\s*start_my_file\s+(.+)$', r'^\s*#\s*end_my_file\s+(.+)$', 'hash'),
-        
-        # C/Java/JS (// )
-        (r'^\s*//\s*start_my_file\s+(.+)$', r'^\s*//\s*end_my_file\s+(.+)$', 'slash'),
-        
-        # HTML (<!-- -->) - на одной строке
-        (r'^\s*<!--\s*start_my_file\s+(.+?)\s*-->$', r'^\s*<!--\s*end_my_file\s+(.+?)\s*-->$', 'html_single'),
-        
-        # HTML (<!-- -->) - на нескольких строках
-        (r'^\s*<!--\s*start_my_file\s+(.+)$', r'^\s*<!--\s*end_my_file\s+(.+?)\s*-->$', 'html_multi'),
-        
-        # CSS (/* */)
-        (r'^\s*/\*\s*start_my_file\s+(.+?)\s*\*/$', r'^\s*/\*\s*end_my_file\s+(.+?)\s*\*/$', 'css'),
-        
-        # SQL (-- )
-        (r'^\s*--\s*start_my_file\s+(.+)$', r'^\s*--\s*end_my_file\s+(.+)$', 'sql'),
-        
-        # INI (; )
-        (r'^\s*;\s*start_my_file\s+(.+)$', r'^\s*;\s*end_my_file\s+(.+)$', 'ini'),
-        
-        # Ruby/Perl (% )
-        (r'^\s*%\s*start_my_file\s+(.+)$', r'^\s*%\s*end_my_file\s+(.+)$', 'percent'),
-        
-        # Pascal/Delphi ({ })
-        (r'^\s*\{\s*start_my_file\s+(.+)\s*\}$', r'^\s*\{\s*end_my_file\s+(.+)\s*\}$', 'braces'),
-        
-        # Lua (--[[ ]])
-        (r'^\s*--\[\[\s*start_my_file\s+(.+)\s*\]\]$', r'^\s*--\[\[\s*end_my_file\s+(.+)\s*\]\]$', 'lua'),
-        
-        # Haskell ({- -})
-        (r'^\s*\{-\s*start_my_file\s+(.+)\s*-\}$', r'^\s*\{-\s*end_my_file\s+(.+)\s*-\}$', 'haskell'),
-        
-        # TeX/LaTeX (% )
-        (r'^\s*%\s*start_my_file\s+(.+)$', r'^\s*%\s*end_my_file\s+(.+)$', 'tex'),
-        
-        # VHDL (-- )
-        (r'^\s*--\s*start_my_file\s+(.+)$', r'^\s*--\s*end_my_file\s+(.+)$', 'vhdl'),
-    ]
     
     def __init__(self):
         self.output_dir = None
@@ -94,7 +51,7 @@ class Extractor:
         # Компилируем все паттерны заранее для производительности
         self.start_patterns = []
         self.end_patterns = []
-        for start_re, end_re, style_name in self.COMMENT_STYLES:
+        for start_re, end_re, style_name in EXTRACT_PATTERNS:
             self.start_patterns.append((re.compile(start_re), style_name))
             self.end_patterns.append((re.compile(end_re), style_name))
         
