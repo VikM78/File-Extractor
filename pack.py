@@ -4,6 +4,7 @@
 """
 Universal File Packer
 Packs multiple files into a single template file with markers.
+Respects .gitignore by default.
 
 Usage:
     python pack.py [SOURCE_DIR] [OPTIONS]
@@ -18,12 +19,15 @@ Options:
     -y, --yes               Answer yes to all prompts
     -v, --verbose           Verbose output
     -e, --exclude PATTERN   Exclude files matching pattern (can be used multiple times)
+    -i, --include-ignored   Include files ignored by .gitignore
+    -a, --include-all       Include all files (ignore .gitignore and default excludes)
 
 Examples:
-    python pack.py                           # Pack files from ./ПАПКА
+    python pack.py                           # Pack files from ./ПАПКА (respects .gitignore)
     python pack.py ./my_project              # Pack files from ./my_project
-    python pack.py -o ./templates -n my_pack # Custom output
-    python pack.py -e "*.pyc" -e "__pycache__" # Exclude patterns
+    python pack.py -i                        # Include .gitignore files
+    python pack.py -a                        # Include ALL files
+    python pack.py -e "*.pyc" -e "*.log"     # Additional excludes
 
 Author: Виктор Макаров
 Email: vmakarov.kzn@gmail.com
@@ -49,9 +53,12 @@ class Packer:
         self.output_dir = None
         self.output_name = None
         self.exclude_patterns = []
+        self.include_ignored = False
+        self.include_all = False
         self.verbose = False
         self.auto_yes = False
         self.script_name = Path(sys.argv[0]).name
+        self.gitignore_patterns = []
         
     def parse_arguments(self):
         """Parse command line arguments."""
@@ -62,10 +69,11 @@ class Packer:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog=f"""
 Examples:
-    python {script_name}                           # Pack files from ./ПАПКА
+    python {script_name}                           # Pack files from ./ПАПКА (respects .gitignore)
     python {script_name} ./my_project              # Pack files from ./my_project
-    python {script_name} -o ./templates -n my_pack # Custom output
-    python {script_name} -e "*.pyc" -e "__pycache__" # Exclude patterns
+    python {script_name} -i                        # Include .gitignore files
+    python {script_name} -a                        # Include ALL files
+    python {script_name} -e "*.pyc" -e "*.log"     # Additional excludes
             """
         )
         
@@ -98,6 +106,18 @@ Examples:
         )
         
         parser.add_argument(
+            '-i', '--include-ignored',
+            action='store_true',
+            help='Include files ignored by .gitignore'
+        )
+        
+        parser.add_argument(
+            '-a', '--include-all',
+            action='store_true',
+            help='Include ALL files (ignore .gitignore and default excludes)'
+        )
+        
+        parser.add_argument(
             '-y', '--yes',
             action='store_true',
             help='Answer yes to all prompts'
@@ -110,6 +130,30 @@ Examples:
         )
         
         return parser.parse_args()
+    
+    def load_gitignore(self, source_dir: Path) -> List[str]:
+        """Load .gitignore patterns from source directory."""
+        gitignore_path = source_dir / '.gitignore'
+        patterns = []
+        
+        if gitignore_path.exists():
+            try:
+                with open(gitignore_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        # Skip empty lines and comments
+                        if line and not line.startswith('#'):
+                            patterns.append(line)
+                if self.verbose:
+                    print(f"  Loaded {len(patterns)} patterns from .gitignore")
+            except Exception as e:
+                if self.verbose:
+                    print(f"  Warning: Could not read .gitignore: {e}")
+        else:
+            if self.verbose:
+                print("  No .gitignore file found")
+        
+        return patterns
     
     def get_source_dir(self, args):
         """Get source directory from args or interactive prompt."""
@@ -183,34 +227,54 @@ Examples:
     def get_exclude_patterns(self, args):
         """Get exclude patterns from args."""
         patterns = []
+        
+        # Always exclude if not include-all
+        if not self.include_all:
+            # Add gitignore patterns
+            if not self.include_ignored:
+                patterns.extend(self.gitignore_patterns)
+            
+            # Add default excludes
+            patterns.extend(DEFAULT_EXCLUDES)
+        
+        # Add user patterns
         if args.exclude_patterns:
             patterns.extend(args.exclude_patterns)
         
-        if not self.auto_yes:
-            print("\nDefault exclude patterns:", ", ".join(DEFAULT_EXCLUDES))
-            choice = input("Add more exclude patterns? (y/N): ").strip().lower()
-            if choice in ('y', 'yes'):
-                while True:
-                    pattern = input("Enter exclude pattern (or press Enter to finish): ").strip()
-                    if not pattern:
-                        break
-                    patterns.append(pattern)
-        
-        patterns.extend(DEFAULT_EXCLUDES)
         return patterns
     
     def should_exclude(self, file_path: Path, exclude_patterns: List[str]) -> bool:
         """Check if file should be excluded based on patterns."""
+        if not exclude_patterns:
+            return False
+        
+        # Get relative path from source directory
+        try:
+            rel_path = str(file_path.relative_to(self.source_dir))
+        except ValueError:
+            rel_path = str(file_path)
+        
         for pattern in exclude_patterns:
-            # Check if pattern matches the file path
+            # Check exact match
+            if pattern == rel_path:
+                return True
+            
+            # Check filename match
+            if fnmatch.fnmatch(file_path.name, pattern):
+                return True
+            
+            # Check relative path match
+            if fnmatch.fnmatch(rel_path, pattern):
+                return True
+            
+            # Check absolute path match
             if fnmatch.fnmatch(str(file_path), pattern):
                 return True
-            # Check if pattern matches relative path
-            if fnmatch.fnmatch(str(file_path.relative_to(self.source_dir)), pattern):
+            
+            # Check if pattern is in path (for directory patterns)
+            if pattern in str(file_path) or pattern in rel_path:
                 return True
-            # Check if pattern is in path
-            if pattern in str(file_path):
-                return True
+        
         return False
     
     def pack_files(self, source_dir: Path, exclude_patterns: List[str]) -> List[Dict]:
@@ -221,16 +285,19 @@ Examples:
         
         # Walk through source directory
         for root, dirs, files in os.walk(source_dir):
-            # Skip excluded directories
-            dirs[:] = [d for d in dirs if not self.should_exclude(Path(root) / d, exclude_patterns)]
+            root_path = Path(root)
+            
+            # Skip excluded directories (only if not include-all)
+            if not self.include_all:
+                dirs[:] = [d for d in dirs if not self.should_exclude(root_path / d, exclude_patterns)]
             
             for file in files:
-                file_path = Path(root) / file
+                file_path = root_path / file
                 
                 # Skip excluded files
                 if self.should_exclude(file_path, exclude_patterns):
                     if self.verbose:
-                        print(f"  Skipping excluded: {file_path}")
+                        print(f"  Skipping excluded: {file_path.relative_to(source_dir)}")
                     files_skipped += 1
                     continue
                 
@@ -331,10 +398,18 @@ Examples:
         
         self.verbose = args.verbose
         self.auto_yes = args.yes
+        self.include_ignored = args.include_ignored
+        self.include_all = args.include_all
         
         print("="*60)
         print(f" Universal File Packer ({self.script_name})")
         print("="*60)
+        if self.include_all:
+            print(" Mode: INCLUDE ALL FILES")
+        elif self.include_ignored:
+            print(" Mode: INCLUDE .gitignore FILES")
+        else:
+            print(" Mode: RESPECT .gitignore")
         print(" Press Ctrl+C to cancel at any time")
         print("")
         
@@ -350,6 +425,12 @@ Examples:
             # Get output filename
             self.output_name = self.get_output_name(args)
             print(f" Output filename: {self.output_name}")
+            
+            # Load .gitignore
+            if not self.include_all:
+                self.gitignore_patterns = self.load_gitignore(self.source_dir)
+                if self.verbose:
+                    print(f" Gitignore patterns: {self.gitignore_patterns}")
             
             # Get exclude patterns
             self.exclude_patterns = self.get_exclude_patterns(args)
