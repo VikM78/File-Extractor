@@ -1,7 +1,3 @@
-
-## 3. .gitignore:
-
-```gitignore
 # Python
 __pycache__/
 *.py[cod]
@@ -32,10 +28,12 @@ MANIFEST
 extracted_files/
 output/
 temp/
+backup/
 
 # Test files
 *.test
 *.tmp
+*.log
 
 # IDE
 .vscode/
@@ -45,9 +43,12 @@ temp/
 *~
 .DS_Store
 
-# Logs
-*.log
-
 # Backup files
 *.bak
 *.backup
+*.orig
+
+# Project specific
+ПАПКА/
+DATA_*.txt
+template.txt
