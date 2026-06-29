@@ -38,173 +38,11 @@ from pathlib import Path
 from typing import List, Optional, Set, Dict, Tuple
 import fnmatch
 
+# Import configuration
+from config import COMMENT_STYLES, SPECIAL_FILES, DEFAULT_EXCLUDES, get_comment_style
+
 class Packer:
     """Main packer class with interactive and non-interactive modes."""
-    
-    # Расширенная карта стилей комментариев для разных типов файлов
-    COMMENT_STYLES = {
-        # Языки программирования
-        '.py': ('# ', '# '),           # Python
-        '.pyw': ('# ', '# '),          # Python Windows
-        '.sh': ('# ', '# '),           # Shell
-        '.bash': ('# ', '# '),         # Bash
-        '.zsh': ('# ', '# '),          # Zsh
-        '.fish': ('# ', '# '),         # Fish
-        '.rb': ('# ', '# '),           # Ruby
-        '.rbw': ('# ', '# '),          # Ruby Windows
-        '.pl': ('# ', '# '),           # Perl
-        '.pm': ('# ', '# '),           # Perl Module
-        '.t': ('# ', '# '),            # Perl Test
-        '.go': ('// ', '// '),         # Go
-        '.rs': ('// ', '// '),         # Rust
-        '.swift': ('// ', '// '),      # Swift
-        '.java': ('// ', '// '),       # Java
-        '.kt': ('// ', '// '),         # Kotlin
-        '.kts': ('// ', '// '),        # Kotlin Script
-        '.c': ('// ', '// '),          # C
-        '.cpp': ('// ', '// '),        # C++
-        '.cc': ('// ', '// '),         # C++
-        '.cxx': ('// ', '// '),        # C++
-        '.h': ('// ', '// '),          # C/C++ Header
-        '.hpp': ('// ', '// '),        # C++ Header
-        '.hxx': ('// ', '// '),        # C++ Header
-        '.js': ('// ', '// '),         # JavaScript
-        '.jsx': ('// ', '// '),        # React JSX
-        '.mjs': ('// ', '// '),        # ES Module
-        '.ts': ('// ', '// '),         # TypeScript
-        '.tsx': ('// ', '// '),        # React TSX
-        '.php': ('// ', '// '),        # PHP
-        '.phtml': ('// ', '// '),      # PHP HTML
-        '.lua': ('-- ', '-- '),        # Lua
-        '.hs': ('{- ', ' -}'),         # Haskell
-        '.lhs': ('{- ', ' -}'),        # Literate Haskell
-        '.elm': ('{- ', ' -}'),        # Elm
-        '.ml': ('(* ', ' *)'),         # OCaml
-        '.mli': ('(* ', ' *)'),        # OCaml Interface
-        '.scala': ('// ', '// '),      # Scala
-        '.clj': ('; ', '; '),          # Clojure
-        '.cljs': ('; ', '; '),         # ClojureScript
-        '.dart': ('// ', '// '),       # Dart
-        '.r': ('# ', '# '),            # R
-        '.rmd': ('<!-- ', ' -->'),     # R Markdown
-        '.jl': ('# ', '# '),           # Julia
-        '.ex': ('# ', '# '),           # Elixir
-        '.exs': ('# ', '# '),          # Elixir Script
-        '.erl': ('% ', '% '),          # Erlang
-        '.hrl': ('% ', '% '),          # Erlang Header
-        '.fs': ('// ', '// '),         # F#
-        '.fsi': ('// ', '// '),        # F# Interface
-        '.fsx': ('// ', '// '),        # F# Script
-        '.vb': ("' ", "' "),           # Visual Basic
-        '.vbs': ("' ", "' "),          # VBScript
-        '.ps1': ('# ', '# '),          # PowerShell
-        '.psm1': ('# ', '# '),         # PowerShell Module
-        '.psd1': ('# ', '# '),         # PowerShell Data
-        
-        # Веб-технологии
-        '.html': ('<!-- ', ' -->'),    # HTML
-        '.htm': ('<!-- ', ' -->'),     # HTML
-        '.xhtml': ('<!-- ', ' -->'),   # XHTML
-        '.xml': ('<!-- ', ' -->'),     # XML
-        '.svg': ('<!-- ', ' -->'),     # SVG
-        '.vue': ('<!-- ', ' -->'),     # Vue.js
-        '.svelte': ('<!-- ', ' -->'),  # Svelte
-        '.erb': ('<%# ', ' %>'),       # ERB (Ruby)
-        '.ejs': ('<%# ', ' %>'),       # EJS (JavaScript)
-        '.hbs': ('{{! ', ' }}'),       # Handlebars
-        '.mustache': ('{{! ', ' }}'),  # Mustache
-        
-        # Стили
-        '.css': ('/* ', ' */'),        # CSS
-        '.scss': ('/* ', ' */'),       # SCSS
-        '.sass': ('// ', '// '),       # SASS
-        '.less': ('// ', '// '),       # LESS
-        '.styl': ('// ', '// '),       # Stylus
-        '.pcss': ('/* ', ' */'),       # PostCSS
-        '.sss': ('// ', '// '),        # SugarSS
-        
-        # Конфигурационные файлы
-        '.ini': ('; ', '; '),          # INI
-        '.cfg': ('# ', '# '),          # Config
-        '.conf': ('# ', '# '),         # Config
-        '.yml': ('# ', '# '),          # YAML
-        '.yaml': ('# ', '# '),         # YAML
-        '.toml': ('# ', '# '),         # TOML
-        '.json': ('// ', '// '),       # JSON (для совместимости)
-        '.json5': ('// ', '// '),      # JSON5
-        '.hjson': ('# ', '# '),        # HJSON
-        '.env': ('# ', '# '),          # Environment
-        '.properties': ('# ', '# '),   # Java Properties
-        '.prop': ('# ', '# '),         # Properties
-        '.xaml': ('<!-- ', ' -->'),    # XAML
-        
-        # Базы данных
-        '.sql': ('-- ', '-- '),        # SQL
-        '.psql': ('-- ', '-- '),       # PostgreSQL
-        '.mysql': ('-- ', '-- '),      # MySQL
-        '.sqlite': ('-- ', '-- '),     # SQLite
-        '.plsql': ('-- ', '-- '),      # PL/SQL
-        '.pgsql': ('-- ', '-- '),      # PostgreSQL
-        '.tsql': ('-- ', '-- '),       # T-SQL
-        
-        # Документация
-        '.md': ('<!-- ', ' -->'),      # Markdown
-        '.markdown': ('<!-- ', ' -->'),# Markdown
-        '.rst': ('.. ', '.. '),        # reStructuredText
-        '.txt': ('# ', '# '),          # Plain text
-        '.text': ('# ', '# '),         # Plain text
-        '.adoc': ('// ', '// '),       # AsciiDoc
-        '.asciidoc': ('// ', '// '),   # AsciiDoc
-        '.org': ('# ', '# '),          # Org-mode
-        '.tex': ('% ', '% '),          # LaTeX
-        '.latex': ('% ', '% '),        # LaTeX
-        
-        # Другие
-        '.dockerfile': ('# ', '# '),   # Dockerfile
-        'dockerfile': ('# ', '# '),    # Dockerfile
-        '.makefile': ('# ', '# '),     # Makefile
-        'makefile': ('# ', '# '),      # Makefile
-        '.mk': ('# ', '# '),           # Makefile
-        '.cmake': ('# ', '# '),        # CMake
-        '.cmake.in': ('# ', '# '),     # CMake Input
-        '.ninja': ('# ', '# '),        # Ninja
-        '.gradle': ('// ', '// '),     # Gradle
-        '.groovy': ('// ', '// '),     # Groovy
-        '.jenkinsfile': ('// ', '// '),# Jenkinsfile
-        '.tf': ('# ', '# '),           # Terraform
-        '.tfvars': ('# ', '# '),       # Terraform Variables
-        '.hcl': ('# ', '# '),          # HCL
-        '.nomad': ('# ', '# '),        # Nomad
-        '.vault': ('# ', '# '),        # Vault
-        '.proto': ('// ', '// '),      # Protocol Buffers
-        '.thrift': ('// ', '// '),     # Thrift
-        '.avsc': ('// ', '// '),       # Avro Schema
-        '.graphql': ('# ', '# '),      # GraphQL
-        '.gql': ('# ', '# '),          # GraphQL
-        '.cql': ('-- ', '-- '),        # Cassandra CQL
-        
-        # Системные
-        '.bat': (':: ', ':: '),        # Batch
-        '.cmd': (':: ', ':: '),        # Command
-        '.vbe': ("' ", "' "),          # VBScript Encoded
-        '.wsf': ('<!-- ', ' -->'),     # Windows Script File
-        '.wsh': ('<!-- ', ' -->'),     # Windows Script Host
-        
-        # Специальные
-        '.gitignore': ('# ', '# '),    # Git Ignore
-        '.gitattributes': ('# ', '# '),# Git Attributes
-        '.gitmodules': ('# ', '# '),   # Git Modules
-        '.editorconfig': ('# ', '# '), # EditorConfig
-        '.eslintrc': ('// ', '// '),   # ESLint
-        '.prettierrc': ('// ', '// '), # Prettier
-        '.stylelintrc': ('// ', '// '),# Stylelint
-        '.babelrc': ('// ', '// '),    # Babel
-        '.npmrc': ('# ', '# '),        # npm
-        '.yarnrc': ('# ', '# '),       # yarn
-        
-        # По умолчанию
-        'default': ('# ', '# '),       # Default
-    }
     
     def __init__(self):
         self.source_dir = None
@@ -348,24 +186,8 @@ Examples:
         if args.exclude_patterns:
             patterns.extend(args.exclude_patterns)
         
-        # Default exclusions
-        default_excludes = [
-            "*.pyc",
-            "__pycache__",
-            "*.log",
-            "*.tmp",
-            "*.bak",
-            ".git",
-            ".svn",
-            ".DS_Store",
-            "Thumbs.db",
-            "*.swp",
-            "*.swo",
-            "*~"
-        ]
-        
         if not self.auto_yes:
-            print("\nDefault exclude patterns:", ", ".join(default_excludes))
+            print("\nDefault exclude patterns:", ", ".join(DEFAULT_EXCLUDES))
             choice = input("Add more exclude patterns? (y/N): ").strip().lower()
             if choice in ('y', 'yes'):
                 while True:
@@ -374,7 +196,7 @@ Examples:
                         break
                     patterns.append(pattern)
         
-        patterns.extend(default_excludes)
+        patterns.extend(DEFAULT_EXCLUDES)
         return patterns
     
     def should_exclude(self, file_path: Path, exclude_patterns: List[str]) -> bool:
@@ -390,49 +212,6 @@ Examples:
             if pattern in str(file_path):
                 return True
         return False
-    
-    def get_comment_style(self, file_path: str) -> Tuple[str, str]:
-        """Get comment style based on file path and extension."""
-        path_obj = Path(file_path)
-        filename = path_obj.name.lower()
-        ext = path_obj.suffix.lower()
-        
-        # Специальные случаи для файлов без расширения
-        special_files = {
-            'dockerfile': ('# ', '# '),
-            'makefile': ('# ', '# '),
-            'cmakelists.txt': ('# ', '# '),
-            'jenkinsfile': ('// ', '// '),
-            'vagrantfile': ('# ', '# '),
-            'rakefile': ('# ', '# '),
-            'gemfile': ('# ', '# '),
-            'procfile': ('# ', '# '),
-            'pom.xml': ('<!-- ', ' -->'),
-            'web.config': ('<!-- ', ' -->'),
-            'app.config': ('<!-- ', ' -->'),
-            '.env': ('# ', '# '),
-            '.gitignore': ('# ', '# '),
-            '.gitattributes': ('# ', '# '),
-            '.gitmodules': ('# ', '# '),
-            '.editorconfig': ('# ', '# '),
-            '.eslintrc': ('// ', '// '),
-            '.prettierrc': ('// ', '// '),
-            '.stylelintrc': ('// ', '// '),
-            '.babelrc': ('// ', '// '),
-            '.npmrc': ('# ', '# '),
-            '.yarnrc': ('# ', '# '),
-        }
-        
-        # Проверяем специальные файлы
-        if filename in special_files:
-            return special_files[filename]
-        
-        # Проверяем по расширению
-        if ext in self.COMMENT_STYLES:
-            return self.COMMENT_STYLES[ext]
-        
-        # По умолчанию
-        return self.COMMENT_STYLES['default']
     
     def pack_files(self, source_dir: Path, exclude_patterns: List[str]) -> List[Dict]:
         """Pack files from source directory into a list of file info dicts."""
@@ -488,8 +267,8 @@ Examples:
                     files_skipped += 1
                     continue
                 
-                # Get comment style for the file
-                start_comment, end_comment = self.get_comment_style(str(relative_path))
+                # Get comment style for the file using config
+                start_comment, end_comment = get_comment_style(str(relative_path))
                 
                 # Add to packed files
                 packed_files.append({
@@ -524,8 +303,6 @@ Examples:
                 content = file_info['content']
                 start_comment = file_info['start_comment']
                 end_comment = file_info['end_comment']
-                extension = file_info['extension']
-                filename = file_info['filename']
                 
                 # Write start marker with appropriate comment style
                 if start_comment:
